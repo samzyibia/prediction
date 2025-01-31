@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acala Network Crypto Betting</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Acala Network Crypto Betting</h1>
+        <input type="text" id="crypto" placeholder="Enter Acala cryptocurrency (e.g., acala, karura)" value="acala" />
+        <div class="card">
+            <p><strong>Current Price:</strong></p>
+            <p id="price">Loading...</p>
+        </div>
+        <canvas id="priceChart" width="400" height="200"></canvas>
+        <p><strong>Predict the price movement:</strong></p>
+        <button onclick="submitPrediction('up')">Price Goes Up</button>
+        <button onclick="submitPrediction('down')">Price Goes Down</button>
+        <p id="result"></p>
+        
+        <!-- Countdown Timer -->
+        <div class="countdown">
+            <p><strong>Prediction Timer:</strong></p>
+            <p id="countdownTimer">05:00</p>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        let priceChart;
+        let lastPrice = null;
+        let predictionTimestamp = null;
+        let countdownInterval;
+
+        async function fetchPrice() {
+            const crypto = document.getElementById('crypto').value.toLowerCase() || 'acala';
+            try {
+                const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${crypto}&vs_currencies=usd`);
+                const data = await response.json();
+                if (data[crypto]) {
+                    const currentPrice = data[crypto].usd;
+                    document.getElementById('price').textContent = `$${currentPrice}`;
+                    updateChart(currentPrice);
+                    if (lastPrice !== null) {
+                        // Check if 5 minutes have passed to check prediction outcome
+                        if (predictionTimestamp && (Date.now() - predictionTimestamp >= 300000)) {
+                            checkBetOutcome(currentPrice);
+                        }
+                    }
+                    lastPrice = currentPrice;
+                } else {
+                    document.getElementById('price').textContent = "Price not available";
+                }
+            } catch (error) {
+                document.getElementById('price').textContent = "Error fetching price";
+            }
+        }
+
+        let userPrediction = null;
+        function submitPrediction(direction) {
+            userPrediction = direction;
+            predictionTimestamp = Date.now();
+            document.getElementById('result').textContent = `You predicted the price will go ${direction}. Outcome will be checked in 5 minutes.`;
+            startCountdown();
+        }
+        
+        function checkBetOutcome(newPrice) {
+            if (!userPrediction) return;
+            const outcome = newPrice > lastPrice ? 'up' : 'down';
+            if (userPrediction === outcome) {
+                document.getElementById('result').textContent = "Congratulations! Your prediction was correct!";
+            } else {
+                document.getElementById('result').textContent = "Oops! Your prediction was incorrect.";
+            }
+            userPrediction = null;
+            predictionTimestamp = null;
+            stopCountdown();
+        }
+        
+        function updateChart(price) {
+            const ctx = document.getElementById('priceChart').getContext('2d');
+            if (!priceChart) {
+                priceChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: [new Date().toLocaleTimeString()],
+                        datasets: [{
+                            label: 'Acala Price (USD)',
+                            data: [price],
+                            borderColor: 'blue',
+                            fill: false,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            x: { title: { display: true, text: 'Time' } },
+                            y: { title: { display: true, text: 'Price (USD)' } }
+                        }
+                    }
+                });
+            } else {
+                priceChart.data.labels.push(new Date().toLocaleTimeString());
+                priceChart.data.datasets[0].data.push(price);
+                priceChart.update();
+            }
+        }
+
+        function startCountdown() {
+            let timeRemaining = 300; // 5 minutes in seconds
+            countdownInterval = setInterval(() => {
+                const minutes = Math.floor(timeRemaining / 60);
+                const seconds = timeRemaining % 60;
+                document.getElementById('countdownTimer').textContent = `${formatTime(minutes)}:${formatTime(seconds)}`;
+                timeRemaining--;
+                if (timeRemaining < 0) {
+                    clearInterval(countdownInterval);
+                }
+            }, 1000);
+        }
+
+        function stopCountdown() {
+            clearInterval(countdownInterval);
+            document.getElementById('countdownTimer').textContent = "00:00";
+        }
+
+        function formatTime(time) {
+            return time < 10 ? `0${time}` : time;
+        }
+
+        document.getElementById('crypto').addEventListener('input', fetchPrice);
+        setInterval(fetchPrice, 10000); // Fetch price every 10 seconds
+        fetchPrice();
+    </script>
+</body>
+</html>
